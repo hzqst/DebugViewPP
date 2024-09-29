@@ -24,6 +24,7 @@ add_library(${PROJECT_NAME}
     Loopback.cpp
     MatchType.cpp
     NewlineFilter.cpp
+    EtwReader.cpp
     PipeReader.cpp
     PolledLogSource.cpp
     ProcessInfo.cpp
