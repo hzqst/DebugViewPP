@@ -16,6 +16,9 @@
 
 #include "atleverything.h"
 
+#include <initguid.h>
+DEFINE_GUID(AFDriverProvider, 0x96DCAB03, 0x2DDB, 0xD014, 0x99, 0xFC, 0xD7, 0x73, 0xF5, 0x6B, 0x6A, 0x2B);
+
 //#define ENABLE_CRASHPAD
 #ifdef ENABLE_CRASHPAD
 #include "crashpad.h"
@@ -176,6 +179,7 @@ int Main(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*lpstrCmdLine
     {
         wndMain.CapturePipe(hPipe);
     }
+    wndMain.CaptureEtw(AFDriverProvider);
 
     return theLoop.Run();
 }

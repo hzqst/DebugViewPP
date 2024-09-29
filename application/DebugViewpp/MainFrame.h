@@ -89,6 +89,7 @@ public:
     void Load(HANDLE hFile);
     void Load(std::istream& file, const std::string& name, FILETIME fileTime);
     void CapturePipe(HANDLE hPipe);
+    void CaptureEtw(GUID Provider);
     void FindNext(const std::wstring& text);
     void FindPrevious(const std::wstring& text);
     void OnDropped(std::wstring uri);

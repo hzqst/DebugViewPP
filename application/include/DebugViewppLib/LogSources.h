@@ -25,6 +25,7 @@ class ProcessReader;
 class FileReader;
 class AnyFileReader;
 class BinaryFileReader;
+class EtwReader;
 class PipeReader;
 class TestSource;
 class Loopback;
@@ -80,6 +81,7 @@ public:
     AnyFileReader* AddAnyFileReader(const std::wstring& filename, bool keeptailing);
     DbgviewReader* AddDbgviewReader(const std::string& hostname);
     SocketReader* AddUDPReader(int port);
+    EtwReader* AddEtwReader(GUID ProviderGuid);
     PipeReader* AddPipeReader(DWORD pid, HANDLE hPipe);
     TestSource* AddTestSource(); // for unittesting
     void AddMessage(const std::string& message);

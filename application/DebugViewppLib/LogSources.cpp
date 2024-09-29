@@ -14,6 +14,7 @@
 #include "Win32/Utilities.h"
 #include "DebugViewppLib/LogSources.h"
 #include "DebugViewppLib/ProcessReader.h"
+#include "DebugViewppLib/EtwReader.h"
 #include "DebugViewppLib/PipeReader.h"
 #include "DebugViewppLib/FileReader.h"
 #include "DebugViewppLib/BinaryFileReader.h"
@@ -486,6 +487,15 @@ AnyFileReader* LogSources::AddAnyFileReader(const std::wstring& filename, bool k
     pAnyFileReader->SubscribeToUpdate([&]() { m_throttledUpdate(); });
     auto pResult = pAnyFileReader.get();
     Add(std::move(pAnyFileReader));
+    return pResult;
+}
+
+EtwReader* LogSources::AddEtwReader(GUID ProviderGuid)
+{
+    assert(m_executor.IsExecutorThread());
+    auto pEtwReader = std::make_unique<EtwReader>(m_timer, m_linebuffer, ProviderGuid, 10);
+    auto pResult = pEtwReader.get();
+    Add(std::move(pEtwReader));
     return pResult;
 }
 
