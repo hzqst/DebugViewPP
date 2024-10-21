@@ -8,6 +8,7 @@
 #include "PolledLogSource.h"
 
 #include <evntrace.h>
+#include <tdh.h>
 
 namespace fusion {
 namespace debugviewpp {
@@ -30,7 +31,10 @@ public:
     VOID EventRecord(PEVENT_RECORD EventRecord);
 
     private:
-
+    void UnicodeToANSI(const std::wstring& str, std::string& out);
+    std::string UtilGetProcessNameFromProcessId(DWORD processId);
+    bool GetEventPropertyValueAsInt32(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, int32_t& value);
+    bool GetEventPropertyValueAsString(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, std::string& value);
     bool Peek() const;
 
     GUID m_ProviderGuid;

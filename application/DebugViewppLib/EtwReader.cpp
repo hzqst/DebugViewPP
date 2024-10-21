@@ -14,6 +14,7 @@
 #include <thread>
 #include <initguid.h>
 #include <windows.h>
+#include <psapi.h>
 #include <evntprov.h>
 #include <evntrace.h>
 #include <evntcons.h>
@@ -54,6 +55,9 @@ namespace fusion {
             ULONG PropertiesSize = sizeof(EVENT_TRACE_PROPERTIES) + sizeof(RURIWO_LOGGER_NAME) + 2;
             PEVENT_TRACE_PROPERTIES Properties = reinterpret_cast<PEVENT_TRACE_PROPERTIES>(malloc(PropertiesSize));
 
+            if (!Properties)
+                return ERROR_OUTOFMEMORY;
+
             while (TRUE) {
                 RtlZeroMemory(Properties, PropertiesSize);
 
@@ -69,9 +73,8 @@ namespace fusion {
 
                 Status = StartTraceW(&TraceHandle, RURIWO_LOGGER_NAME, Properties);
 
-                //printf("StartTraceW result %08X\n", Status);
-
-                if (ERROR_SUCCESS == Status) {
+                if (ERROR_SUCCESS == Status)
+                {
                     auto Status2 =
                         EnableTraceEx(&ProviderGuid,
                             nullptr,
@@ -83,13 +86,12 @@ namespace fusion {
                             0,
                             nullptr);
 
-                    // printf("EnableTraceEx result %08X\n", Status2);
                     break;
                 }
-                else if (ERROR_ALREADY_EXISTS == Status) {
+                else if (ERROR_ALREADY_EXISTS == Status)
+                {
                     Status = ControlTraceW(0, RURIWO_LOGGER_NAME, Properties, EVENT_TRACE_CONTROL_STOP);
 
-                    //printf("ControlTraceW result %08X\n", Status);
                     if (ERROR_SUCCESS != Status) {
                         break;
                     }
@@ -160,13 +162,181 @@ namespace fusion {
             Peek();
         }
 
+        void EtwReader::UnicodeToANSI(const std::wstring& str, std::string& out)
+        {
+            int len = WideCharToMultiByte(CP_ACP, 0, str.c_str(), str.length(), NULL, 0, NULL, NULL);
+            out.resize(len);
+            WideCharToMultiByte(CP_ACP, 0, str.c_str(), str.length(), (LPSTR)out.data(), len, NULL, NULL);
+        }
+
+        bool EtwReader::GetEventPropertyValueAsString(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, std::string& value)
+        {
+            ULONG propertyIndex = ULONG_MAX;
+            for (ULONG i = 0; i < pInfo->TopLevelPropertyCount; ++i)
+            {
+                PEVENT_PROPERTY_INFO pPropertyInfo = &pInfo->EventPropertyInfoArray[i];
+                LPWSTR pName = (LPWSTR)((PBYTE)pInfo + pPropertyInfo->NameOffset);
+                if (wcscmp(pName, propertyName) == 0)
+                {
+                    propertyIndex = i;
+                    break;
+                }
+            }
+
+            if (propertyIndex == ULONG_MAX)
+            {
+                // ?????
+                return false;
+            }
+
+            // ?????????
+            PROPERTY_DATA_DESCRIPTOR dataDescriptor;
+            RtlZeroMemory(&dataDescriptor, sizeof(PROPERTY_DATA_DESCRIPTOR));
+            dataDescriptor.PropertyName = (ULONGLONG)propertyName;
+            dataDescriptor.ArrayIndex = ULONG_MAX;  // ???
+
+            ULONG propertySize = 0;
+            ULONG status = TdhGetPropertySize(pEventRecord, 0, NULL, 1, &dataDescriptor, &propertySize);
+            if (status != ERROR_SUCCESS)
+            {
+                return false;
+            }
+
+            std::vector<BYTE> buffer(propertySize);
+
+            status = TdhGetProperty(pEventRecord, 0, NULL, 1, &dataDescriptor, propertySize, buffer.data());
+            if (status != ERROR_SUCCESS)
+            {
+                return false;
+            }
+
+            // ?? InType ????
+            PEVENT_PROPERTY_INFO pPropertyInfo = &pInfo->EventPropertyInfoArray[propertyIndex];
+            USHORT inType = pPropertyInfo->nonStructType.InType;
+
+            switch (inType)
+            {
+            case TDH_INTYPE_UNICODESTRING: {
+                std::wstring ustr((WCHAR*)buffer.data(), buffer.size() / sizeof(WCHAR) - 1);
+                UnicodeToANSI(ustr, value);
+                break;
+            }
+            case TDH_INTYPE_ANSISTRING: {
+                value.assign((CHAR*)buffer.data(), buffer.size() - 1);
+                break;
+            }
+            case TDH_INTYPE_COUNTEDSTRING: // 300
+            {
+                USHORT stringLength = *(USHORT*)buffer.data();
+                if (stringLength > 0 && (stringLength + sizeof(USHORT)) <= buffer.size())
+                {
+                    WCHAR* pwStr = (WCHAR*)(buffer.data() + sizeof(USHORT));
+                    std::wstring ustr(pwStr, stringLength / sizeof(WCHAR));
+                    UnicodeToANSI(ustr, value);
+                }
+                else
+                {
+                    value.clear();
+                }
+                break;
+            }
+            case TDH_INTYPE_COUNTEDANSISTRING: // 301
+            {
+                USHORT stringLength = *(USHORT*)buffer.data();
+                if (stringLength > 0 && (stringLength + sizeof(USHORT)) <= buffer.size())
+                {
+                    CHAR* pStr = (CHAR*)(buffer.data() + sizeof(USHORT));
+                    value.assign(pStr, stringLength);
+                }
+                else
+                {
+                    value.clear();
+                }
+                break;
+            }
+            default:
+                return false;
+            }
+
+            return true;
+        }
+
+        bool EtwReader::GetEventPropertyValueAsInt32(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, int32_t& value)
+        {
+            ULONG propertyIndex = ULONG_MAX;
+            for (ULONG i = 0; i < pInfo->TopLevelPropertyCount; ++i)
+            {
+                PEVENT_PROPERTY_INFO pPropertyInfo = &pInfo->EventPropertyInfoArray[i];
+                LPWSTR pName = (LPWSTR)((PBYTE)pInfo + pPropertyInfo->NameOffset);
+                if (wcscmp(pName, propertyName) == 0)
+                {
+                    propertyIndex = i;
+                    break;
+                }
+            }
+
+            if (propertyIndex == ULONG_MAX)
+            {
+                return false;
+            }
+
+            PROPERTY_DATA_DESCRIPTOR dataDescriptor;
+            RtlZeroMemory(&dataDescriptor, sizeof(PROPERTY_DATA_DESCRIPTOR));
+            dataDescriptor.PropertyName = (ULONGLONG)propertyName;
+            dataDescriptor.ArrayIndex = ULONG_MAX;
+
+            ULONG propertySize = 0;
+            ULONG status = TdhGetPropertySize(pEventRecord, 0, NULL, 1, &dataDescriptor, &propertySize);
+            if (status != ERROR_SUCCESS)
+            {
+                return false;
+            }
+
+            if (propertySize != sizeof(int32_t))
+            {
+                return false;
+            }
+
+            status = TdhGetProperty(pEventRecord, 0, NULL, 1, &dataDescriptor, propertySize, (PBYTE)&value);
+            if (status != ERROR_SUCCESS)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        // ?? ProcessId ??????
+        std::string EtwReader::UtilGetProcessNameFromProcessId(DWORD processId)
+        {
+            if (processId <= 4)
+            {
+                return "System";
+            }
+
+            std::string processName = "<unknown>";
+
+            HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+            if (hProcess != NULL)
+            {
+                WCHAR szProcessName[MAX_PATH] = L"<unknown>";
+
+                if (GetModuleBaseNameW(hProcess, NULL, szProcessName, MAX_PATH))
+                {
+                    UnicodeToANSI(szProcessName, processName);
+                }
+                CloseHandle(hProcess);
+            }
+
+            return processName;
+        }
+
         VOID EtwReader::EventRecord(PEVENT_RECORD EventRecord)
         {
-            // ?????????
             PTRACE_EVENT_INFO pEventInfo = nullptr;
             ULONG BufferSize = 0;
-            ULONG Status = TdhGetEventInformation(
-                EventRecord, 0, nullptr, pEventInfo, &BufferSize);
+
+            ULONG Status = TdhGetEventInformation(EventRecord, 0, nullptr, pEventInfo, &BufferSize);
 
             if (Status == ERROR_INSUFFICIENT_BUFFER)
             {
@@ -176,74 +346,40 @@ namespace fusion {
 
             if (Status != ERROR_SUCCESS)
             {
-                printf("TdhGetEventInformation failed with %08X\n", Status);
-
                 if (pEventInfo)
                 {
                     free(pEventInfo);
                 }
-                return;  // ????????,????
+                return;
             }
 
-            // ????????,?? "message" ??,????????
-            for (ULONG i = 0; i < pEventInfo->TopLevelPropertyCount; i++)
+            DWORD ProcessId = EventRecord->EventHeader.ProcessId;
+            std::string ProcessName;
+
+            int32_t eventProcessId = 0;
+            if (GetEventPropertyValueAsInt32(EventRecord, pEventInfo, L"process_id", eventProcessId))
             {
-                PEVENT_PROPERTY_INFO pPropertyInfo = &pEventInfo->EventPropertyInfoArray[i];
-                LPWSTR PropertyName = (LPWSTR)((PBYTE)pEventInfo + pPropertyInfo->NameOffset);
-
-                // ??????????? "message" (?????)
-                if (wcscmp(PropertyName, L"message") == 0)
-                {
-                    // ?????????
-                    ULONG PropertySize = 0;
-                    PROPERTY_DATA_DESCRIPTOR DataDescriptor;
-                    DataDescriptor.PropertyName = (ULONGLONG)PropertyName;
-                    DataDescriptor.ArrayIndex = ULONG_MAX;  // ?????
-
-                    Status = TdhGetPropertySize(EventRecord, 0, nullptr, 1, &DataDescriptor, &PropertySize);
-
-                    if (Status == ERROR_SUCCESS && PropertySize > 0)
-                    {
-                        // ??????????????
-                        PBYTE PropertyBuffer = (PBYTE)malloc(PropertySize);
-                        if (!PropertyBuffer)
-                        {
-                            free(pEventInfo);
-                            return;
-                        }
-
-                        Status = TdhGetProperty(
-                            EventRecord, 0, nullptr, 1, &DataDescriptor, PropertySize, PropertyBuffer);
-
-                        if (Status == ERROR_SUCCESS)
-                        {
-                            // ?? "message" ??? ANSI ???
-                            std::string MessageString((char*)PropertyBuffer, PropertySize - 1);  // -1 ???? '\0'
-                            std::cout << MessageString << std::endl;
-
-                           AddMessage(4, "System", MessageString);
-                        }
-                        else
-                        {
-                            printf("TdhGetProperty failed with %08X\n", Status);
-                        }
-
-                        free(PropertyBuffer);
-                    }
-                    else
-                    {
-                        printf("TdhGetPropertySize failed with %08X\n", Status);
-                    }
-                    break;
-                }
+                ProcessId = static_cast<DWORD>(eventProcessId);
             }
 
-            // ????? Event ????
+            if (!GetEventPropertyValueAsString(EventRecord, pEventInfo, L"process_name", ProcessName))
+            {
+                ProcessName = UtilGetProcessNameFromProcessId(ProcessId);
+            }
+
+            std::string MessageString;
+            if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"message", MessageString))
+            {
+               // std::cout << "ProcessId: " << ProcessId << ", ProcessName: " << ProcessName << ", Message: " << MessageString << std::endl;
+                AddMessage(ProcessId, ProcessName, MessageString);
+            }
+
             if (pEventInfo)
             {
                 free(pEventInfo);
             }
         }
+
 
     } // namespace debugviewpp
 } // namespace fusion
