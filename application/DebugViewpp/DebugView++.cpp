@@ -17,7 +17,9 @@
 #include "atleverything.h"
 
 #include <initguid.h>
+
 DEFINE_GUID(OACTraceLoggingProvider, 0x96DCAB03, 0x2DDB, 0xD014, 0x99, 0xFC, 0xD7, 0x73, 0xF5, 0x6B, 0x6A, 0x2B);
+DEFINE_GUID(OACKernelTraceLoggingProvider, 0x96DCAB03, 0x2DDB, 0xD014, 0x99, 0xFC, 0xD7, 0x73, 0xF5, 0x6B, 0x6A, 0x2C);
 
 //#define ENABLE_CRASHPAD
 #ifdef ENABLE_CRASHPAD
@@ -180,7 +182,12 @@ int Main(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*lpstrCmdLine
         wndMain.CapturePipe(hPipe);
     }
 
-    wndMain.CaptureEtw(OACTraceLoggingProvider);
+    GUID Providers[] = {
+        OACTraceLoggingProvider,
+        OACKernelTraceLoggingProvider
+    };
+
+    wndMain.CaptureEtw(Providers, _countof(Providers));
 
     return theLoop.Run();
 }

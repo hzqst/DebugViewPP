@@ -81,7 +81,7 @@ public:
     AnyFileReader* AddAnyFileReader(const std::wstring& filename, bool keeptailing);
     DbgviewReader* AddDbgviewReader(const std::string& hostname);
     SocketReader* AddUDPReader(int port);
-    EtwReader* AddEtwReader(GUID ProviderGuid);
+    EtwReader* AddEtwReader(const GUID* Providers, uint32_t NumProviders);
     PipeReader* AddPipeReader(DWORD pid, HANDLE hPipe);
     TestSource* AddTestSource(); // for unittesting
     void AddMessage(const std::string& message);

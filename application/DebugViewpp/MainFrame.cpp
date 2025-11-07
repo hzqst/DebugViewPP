@@ -94,7 +94,7 @@ std::wstring FormatDuration(double seconds)
         return wstringbuilder() << FormatUnits(minutes, L"minute") << L" " << FormatUnits(FloorTo<int>(seconds), L"second");
     }
 
-    static const wchar_t* units[] = {L"s", L"ms", L"µs", L"ns", nullptr};
+    static const wchar_t* units[] = {L"s", L"ms", L"micros", L"ns", nullptr};
     const wchar_t** unit = units;
     while (*unit != nullptr && seconds > 0 && seconds < 1)
     {
@@ -1224,9 +1224,9 @@ void CMainFrame::Load(std::istream& file, const std::string& name, FILETIME file
     }
 }
 
-void CMainFrame::CaptureEtw(GUID Provider)
+void CMainFrame::CaptureEtw(const GUID* Providers, uint32_t NumProviders)
 {
-    m_logSources.AddEtwReader(Provider);
+    m_logSources.AddEtwReader(Providers, NumProviders);
 }
 
 void CMainFrame::CapturePipe(HANDLE hPipe)

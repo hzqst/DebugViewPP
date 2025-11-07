@@ -490,10 +490,10 @@ AnyFileReader* LogSources::AddAnyFileReader(const std::wstring& filename, bool k
     return pResult;
 }
 
-EtwReader* LogSources::AddEtwReader(GUID ProviderGuid)
+EtwReader* LogSources::AddEtwReader(const GUID* Providers, uint32_t NumProviders)
 {
     assert(m_executor.IsExecutorThread());
-    auto pEtwReader = std::make_unique<EtwReader>(m_timer, m_linebuffer, ProviderGuid, 10);
+    auto pEtwReader = std::make_unique<EtwReader>(m_timer, m_linebuffer, Providers, NumProviders, 10);
     auto pResult = pEtwReader.get();
     Add(std::move(pEtwReader));
     return pResult;

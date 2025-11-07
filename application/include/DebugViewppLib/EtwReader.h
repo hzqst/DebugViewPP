@@ -18,7 +18,7 @@ class ILineBuffer;
 class EtwReader : public PolledLogSource
 {
 public:
-    EtwReader(Timer& timer, ILineBuffer& lineBuffer, GUID ProviderGuid, long pollFrequency);
+    EtwReader(Timer& timer, ILineBuffer& lineBuffer, const GUID* Providers, uint32_t NumProviders, long pollFrequency);
     virtual ~EtwReader();
 
     void Abort() override;
@@ -26,7 +26,7 @@ public:
     void Poll() override;
     void Poll(PolledLogSource& logSource);
 
-     ULONG RegisterLogger(GUID ProviderGuid);
+    ULONG RegisterLogger(const GUID* Providers, uint32_t NumProviders);
 
     VOID EventRecord(PEVENT_RECORD EventRecord);
 
@@ -37,7 +37,6 @@ public:
     bool GetEventPropertyValueAsString(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, std::string& value);
     bool Peek() const;
 
-    GUID m_ProviderGuid;
     mutable TRACEHANDLE m_TraceHandle;
     std::string m_buffer;
 };

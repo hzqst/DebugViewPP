@@ -47,7 +47,7 @@ namespace fusion {
             return 0;
         }
 
-        ULONG EtwReader::RegisterLogger(GUID ProviderGuid)
+        ULONG EtwReader::RegisterLogger(const GUID* Providers, uint32_t NumProviders)
         {
             ULONG Status = ERROR_SUCCESS;
             TRACEHANDLE TraceHandle = INVALID_PROCESSTRACE_HANDLE;
@@ -75,8 +75,9 @@ namespace fusion {
 
                 if (ERROR_SUCCESS == Status)
                 {
-                    auto Status2 =
-                        EnableTraceEx(&ProviderGuid,
+                    for (uint32_t i = 0; i < NumProviders; ++i)
+                    {
+                        EnableTraceEx(&Providers[i],
                             nullptr,
                             TraceHandle,
                             EVENT_CONTROL_CODE_ENABLE_PROVIDER,
@@ -85,6 +86,7 @@ namespace fusion {
                             0,
                             0,
                             nullptr);
+                    }
 
                     break;
                 }
@@ -105,12 +107,11 @@ namespace fusion {
             return Status;
         }
 
-        EtwReader::EtwReader(Timer& timer, ILineBuffer& lineBuffer, GUID ProviderGuid, long pollFrequency) :
+        EtwReader::EtwReader(Timer& timer, ILineBuffer& lineBuffer, const GUID* Providers, uint32_t NumProviders, long pollFrequency) :
             PolledLogSource(timer, SourceType::Pipe, lineBuffer, pollFrequency),
-            m_ProviderGuid(ProviderGuid),
             m_TraceHandle(INVALID_PROCESSTRACE_HANDLE)
         {
-            RegisterLogger(ProviderGuid);
+            RegisterLogger(Providers, NumProviders);
 
             ULONG Status = ERROR_SUCCESS;
             EVENT_TRACE_LOGFILEW EventTraceLogFile = { 0 };
@@ -185,15 +186,13 @@ namespace fusion {
 
             if (propertyIndex == ULONG_MAX)
             {
-                // ?????
                 return false;
             }
 
-            // ?????????
             PROPERTY_DATA_DESCRIPTOR dataDescriptor;
             RtlZeroMemory(&dataDescriptor, sizeof(PROPERTY_DATA_DESCRIPTOR));
             dataDescriptor.PropertyName = (ULONGLONG)propertyName;
-            dataDescriptor.ArrayIndex = ULONG_MAX;  // ???
+            dataDescriptor.ArrayIndex = ULONG_MAX;
 
             ULONG propertySize = 0;
             ULONG status = TdhGetPropertySize(pEventRecord, 0, NULL, 1, &dataDescriptor, &propertySize);
@@ -210,7 +209,6 @@ namespace fusion {
                 return false;
             }
 
-            // ?? InType ????
             PEVENT_PROPERTY_INFO pPropertyInfo = &pInfo->EventPropertyInfoArray[propertyIndex];
             USHORT inType = pPropertyInfo->nonStructType.InType;
 
@@ -306,7 +304,6 @@ namespace fusion {
             return true;
         }
 
-        // ?? ProcessId ??????
         std::string EtwReader::UtilGetProcessNameFromProcessId(DWORD processId)
         {
             if (processId <= 4)
