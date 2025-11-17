@@ -359,7 +359,11 @@ namespace fusion {
                 ProcessId = static_cast<DWORD>(eventProcessId);
             }
 
-            if (!GetEventPropertyValueAsString(EventRecord, pEventInfo, L"process_name", ProcessName))
+            if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"process_name", ProcessName))
+            {
+               
+            }
+            else
             {
                 ProcessName = UtilGetProcessNameFromProcessId(ProcessId);
             }
@@ -367,6 +371,12 @@ namespace fusion {
             std::string MessageString;
             if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"message", MessageString))
             {
+                std::string component;
+                if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"component", component))
+                {
+                    MessageString = "[" + component + "] " + MessageString;
+                }
+
                // std::cout << "ProcessId: " << ProcessId << ", ProcessName: " << ProcessName << ", Message: " << MessageString << std::endl;
                 AddMessage(ProcessId, ProcessName, MessageString);
             }
