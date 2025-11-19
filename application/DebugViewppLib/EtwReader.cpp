@@ -363,6 +363,10 @@ namespace fusion {
             {
                
             }
+            else if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"process_name_ustr", ProcessName))
+            {
+
+            }
             else
             {
                 ProcessName = UtilGetProcessNameFromProcessId(ProcessId);
@@ -377,7 +381,6 @@ namespace fusion {
                     MessageString = "[" + component + "] " + MessageString;
                 }
 
-               // std::cout << "ProcessId: " << ProcessId << ", ProcessName: " << ProcessName << ", Message: " << MessageString << std::endl;
                 AddMessage(ProcessId, ProcessName, MessageString);
             }
 
