@@ -9,6 +9,10 @@
 #include "DebugViewppLib/LineBuffer.h"
 #include <array>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#include <chrono>
 #include <unordered_map>
 #include <unordered_set>
 #include <thread>
@@ -304,6 +308,51 @@ namespace fusion {
             return true;
         }
 
+        bool EtwReader::GetEventPropertyValueAsUInt64(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, uint64_t& value)
+        {
+            ULONG propertyIndex = ULONG_MAX;
+            for (ULONG i = 0; i < pInfo->TopLevelPropertyCount; ++i)
+            {
+                PEVENT_PROPERTY_INFO pPropertyInfo = &pInfo->EventPropertyInfoArray[i];
+                LPWSTR pName = (LPWSTR)((PBYTE)pInfo + pPropertyInfo->NameOffset);
+                if (wcscmp(pName, propertyName) == 0)
+                {
+                    propertyIndex = i;
+                    break;
+                }
+            }
+
+            if (propertyIndex == ULONG_MAX)
+            {
+                return false;
+            }
+
+            PROPERTY_DATA_DESCRIPTOR dataDescriptor;
+            RtlZeroMemory(&dataDescriptor, sizeof(PROPERTY_DATA_DESCRIPTOR));
+            dataDescriptor.PropertyName = (ULONGLONG)propertyName;
+            dataDescriptor.ArrayIndex = ULONG_MAX;
+
+            ULONG propertySize = 0;
+            ULONG status = TdhGetPropertySize(pEventRecord, 0, NULL, 1, &dataDescriptor, &propertySize);
+            if (status != ERROR_SUCCESS)
+            {
+                return false;
+            }
+
+            if (propertySize != sizeof(uint64_t))
+            {
+                return false;
+            }
+
+            status = TdhGetProperty(pEventRecord, 0, NULL, 1, &dataDescriptor, propertySize, (PBYTE)&value);
+            if (status != ERROR_SUCCESS)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         std::string EtwReader::UtilGetProcessNameFromProcessId(DWORD processId)
         {
             if (processId <= 4)
@@ -326,6 +375,25 @@ namespace fusion {
             }
 
             return processName;
+        }
+
+        const char *EtwReader::UtilGetTraceLevelString(uint32_t traceLevel)
+        {
+            switch (traceLevel)
+            {
+            case TRACE_LEVEL_CRITICAL:
+                return "CRIT";
+            case TRACE_LEVEL_ERROR:
+                return "ERR";
+            case TRACE_LEVEL_WARNING:
+                return "WARN";
+            case TRACE_LEVEL_INFORMATION:
+                return "INFO";
+            case TRACE_LEVEL_VERBOSE:
+                return "VERB";
+            }
+
+            return nullptr;
         }
 
         VOID EtwReader::EventRecord(PEVENT_RECORD EventRecord)
@@ -359,6 +427,12 @@ namespace fusion {
                 ProcessId = static_cast<DWORD>(eventProcessId);
             }
 
+            int32_t traceLevel = TRACE_LEVEL_NONE;
+            if (GetEventPropertyValueAsInt32(EventRecord, pEventInfo, L"trace_level", traceLevel))
+            {
+                
+            }
+
             if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"process_name", ProcessName))
             {
                
@@ -372,16 +446,45 @@ namespace fusion {
                 ProcessName = UtilGetProcessNameFromProcessId(ProcessId);
             }
 
-            std::string MessageString;
-            if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"message", MessageString))
+            //timestamp since epoch in ms
+            uint64_t timestamp = 0;
+            if (GetEventPropertyValueAsUInt64(EventRecord, pEventInfo, L"timestamp", timestamp))
+            {
+                
+            }
+
+            std::stringstream ss;
+
+            std::string message;
+            if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"message", message))
             {
                 std::string component;
                 if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"component", component))
                 {
-                    MessageString = "[" + component + "] " + MessageString;
+                    ss << "[" << component + "] ";
+                }
+               
+                if (traceLevel > TRACE_LEVEL_NONE)
+                {
+                    ss << "[" << std::string(UtilGetTraceLevelString(traceLevel)) + "] ";
                 }
 
-                AddMessage(ProcessId, ProcessName, MessageString);
+                if (timestamp != 0)
+                {
+                    ss << "[";
+                    // Convert timestamp (milliseconds since epoch) to localtime string [YYYY-MM-DD HH:MM:SS]
+                    time_t timeSeconds = static_cast<time_t>(timestamp / 1000);
+                    struct tm timeInfo;
+                    if (localtime_s(&timeInfo, &timeSeconds) == 0)
+                    {
+                        ss << std::put_time(&timeInfo, "%Y-%m-%d %H:%M:%S");
+                    }
+                    ss << "] ";
+                }
+
+                ss << message;
+
+                AddMessage(ProcessId, ProcessName, ss.str());
             }
 
             if (pEventInfo)
@@ -389,7 +492,6 @@ namespace fusion {
                 free(pEventInfo);
             }
         }
-
 
     } // namespace debugviewpp
 } // namespace fusion

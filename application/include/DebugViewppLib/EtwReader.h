@@ -33,7 +33,9 @@ public:
     private:
     void UnicodeToANSI(const std::wstring& str, std::string& out);
     std::string UtilGetProcessNameFromProcessId(DWORD processId);
+    const char * UtilGetTraceLevelString(uint32_t traceLevel);
     bool GetEventPropertyValueAsInt32(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, int32_t& value);
+    bool GetEventPropertyValueAsUInt64(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, uint64_t& value);
     bool GetEventPropertyValueAsString(PEVENT_RECORD pEventRecord, PTRACE_EVENT_INFO pInfo, LPCWSTR propertyName, std::string& value);
     bool Peek() const;
 
