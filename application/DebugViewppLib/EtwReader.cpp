@@ -384,7 +384,7 @@ namespace fusion {
             case TRACE_LEVEL_CRITICAL:
                 return "CRIT";
             case TRACE_LEVEL_ERROR:
-                return "ERR";
+                return "ERR ";
             case TRACE_LEVEL_WARNING:
                 return "WARN";
             case TRACE_LEVEL_INFORMATION:
@@ -458,17 +458,6 @@ namespace fusion {
             std::string message;
             if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"message", message))
             {
-                std::string component;
-                if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"component", component))
-                {
-                    ss << "[" << component + "] ";
-                }
-               
-                if (traceLevel > TRACE_LEVEL_NONE)
-                {
-                    ss << "[" << std::string(UtilGetTraceLevelString(traceLevel)) + "] ";
-                }
-
                 if (timestamp != 0)
                 {
                     ss << "[";
@@ -482,6 +471,17 @@ namespace fusion {
                     ss << "] ";
                 }
 
+                if (traceLevel > TRACE_LEVEL_NONE)
+                {
+                    ss << "[" << std::string(UtilGetTraceLevelString(traceLevel)) + "] ";
+                }
+
+                std::string component;
+                if (GetEventPropertyValueAsString(EventRecord, pEventInfo, L"component", component))
+                {
+                    ss << "[" << component + "] ";
+                }
+               
                 ss << message;
 
                 AddMessage(ProcessId, ProcessName, ss.str());
